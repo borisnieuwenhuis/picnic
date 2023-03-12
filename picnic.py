@@ -32,6 +32,12 @@ pwd = os.environ.get('PWD')
 picnic = PicnicAPI(username=user_name, password=pwd, country_code="NL")
 chosen_products = {}
 
+def red(string):
+	return "%s %s %s" % (bcolors.FAIL, string, bcolors.ENDC)
+
+def green(string):
+	return "%s %s %s" % (bcolors.OKGREEN, string, bcolors.ENDC)
+
 def order_list(list_name, dry_run=True):
 
 	with open('./lists/%s' % list_name) as f:
@@ -83,6 +89,18 @@ def order_list(list_name, dry_run=True):
 		for product_id in product_ids:
 			logging.info("adding to cart %s" % product_id)
 			picnic.add_product(product_id, count=1)
+
+		logging.debug(picnic.get_cart())
+		cart = picnic.get_cart()
+		for main_item in cart["items"]:
+			for item in main_item["items"]:
+				unavailable_decorators = [d for d in item["decorators"] if d["type"] == "UNAVAILABLE"]
+				unavailable = len(unavailable_decorators) > 0
+				if unavailable:
+					description = unavailable_decorators[0]["explanation"]["short_explanation"]
+					logging.warning(red("%s is unavailable: %s" % (item["name"], description)))
+				else:
+					logging.info(green("%s item added" % item["name"]))
 
 	logging.info("order is %s" % chosen_products)
 	with open('./lists/%s.frozen' % list_name, 'w') as frozen:
