@@ -9,7 +9,22 @@ from simple_term_menu import TerminalMenu
 
 logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
-logging.warning('Watch out!')
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('list')
+parser.add_argument('--dry_run', action='store_true', default=False)
+args = parser.parse_args()
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 user_name = os.environ.get('USER')
 pwd = os.environ.get('PWD')
@@ -17,7 +32,7 @@ pwd = os.environ.get('PWD')
 picnic = PicnicAPI(username=user_name, password=pwd, country_code="NL")
 chosen_products = {}
 
-def order_list(list_name):
+def order_list(list_name, dry_run=True):
 
 	with open('./lists/%s' % list_name) as f:
 	    lines = f.read().splitlines()
@@ -38,10 +53,15 @@ def order_list(list_name):
 		if len(result) > 0 and len(result[0]["items"]) > 0:
 			result_items = result[0]["items"]
 			items = ["%s %s %s" % (x["name"], x["unit_quantity"], x["display_price"]) for x in result_items if x["type"] == "SINGLE_ARTICLE"]
-			existing_product_id = chosen_products.get(product)
-			if existing_product_id is not None:
-				logging.info("adding existing product %s, %s" % (product, existing_product_id))
-				product_ids.append(existing_product_id)
+			existing_product = chosen_products.get(product)
+			if existing_product is not None:
+				existing_product_id = existing_product["id"]
+				existing_product_name = existing_product["name"]
+				logging.info("adding existing product %s, %s, %s" % (product, existing_product_id, existing_product_name))
+				terminal_menu = TerminalMenu([existing_product_name])
+				terminal_choice = terminal_menu.show()
+				if terminal_choice != None:
+					product_ids.append(existing_product_id)
 			else:
 				terminal_menu = TerminalMenu(items)
 				terminal_choice = terminal_menu.show()
@@ -51,14 +71,18 @@ def order_list(list_name):
 					product_choice = result_items[choice_index]
 					logging.info("choose %s", product_choice)
 					product_id = product_choice["id"]
-					chosen_products[product] = product_id
+					chosen_products[product] = {"id": product_id, "name": items[choice_index]}
 					product_ids.append(product_id)
 					logging.info("you choose %s, chosen_products" % product_ids, chosen_products)
 		else:
-			logging.info("nothing found for %s", product)
-	for product_id in product_ids:
-		logging.info("adding to cart %s" % product_id)
-		picnic.add_product(product_id, count=1)
+			logging.info("%s nothing found for %s %s", bcolors.FAIL, product, bcolors.ENDC)
+
+	if dry_run:
+		logging.info("%s dryrun, skipping add to cart%s", bcolors.WARNING, bcolors.ENDC)
+	else:
+		for product_id in product_ids:
+			logging.info("adding to cart %s" % product_id)
+			picnic.add_product(product_id, count=1)
 
 	logging.info("order is %s" % chosen_products)
 	with open('./lists/%s.frozen' % list_name, 'w') as frozen:
@@ -68,8 +92,6 @@ def order_list(list_name):
 	logging.info("done")
 
 if __name__ == "__main__":
-    print(f"Arguments count: {len(sys.argv)}")
-    for i, arg in enumerate(sys.argv):
-        print(f"Argument {i:>6}: {arg}")
-
-    order_list(sys.argv[1])
+	print(f"Arguments count: {len(sys.argv)}")
+	print("args %s, %s" % (args.list, args.dry_run))       
+	order_list(args.list, dry_run=args.dry_run)
